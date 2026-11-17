@@ -3,6 +3,7 @@
 > A tiny Pinia plugin that automatically tracks **loading** and **error** state for every async action — no boilerplate.
 
 [![npm version](https://img.shields.io/npm/v/pinia-async-state.svg)](https://www.npmjs.com/package/pinia-async-state)
+[![GitHub release](https://img.shields.io/github/v/release/V-CodeSmith/pinia-async-state)](https://github.com/V-CodeSmith/pinia-async-state/releases)
 [![npm downloads](https://img.shields.io/npm/dm/pinia-async-state.svg)](https://www.npmjs.com/package/pinia-async-state)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/pinia-async-state)](https://bundlephobia.com/package/pinia-async-state)
 [![CI](https://github.com/V-CodeSmith/pinia-async-state/actions/workflows/ci.yml/badge.svg)](https://github.com/V-CodeSmith/pinia-async-state/actions)
