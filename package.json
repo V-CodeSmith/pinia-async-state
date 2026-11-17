@@ -8,10 +8,12 @@
     "plugin",
     "loading",
     "async",
-    "typescript"
+    "typescript",
+    "composition-api",
+    "state-management"
   ],
   "license": "MIT",
-  "author": "Your Name",
+  "author": "V-CodeSmith",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
