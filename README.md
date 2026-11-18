@@ -1,6 +1,6 @@
 # pinia-async-state
 
-> A tiny Pinia plugin that automatically tracks **loading** and **error** state for every async action — no boilerplate.
+> A tiny Pinia plugin that tracks **loading** and **error** state for every async action — per store **and** per action, with zero boilerplate.
 
 [![npm version](https://img.shields.io/npm/v/pinia-async-state.svg)](https://www.npmjs.com/package/pinia-async-state)
 [![GitHub release](https://img.shields.io/github/v/release/V-CodeSmith/pinia-async-state)](https://github.com/V-CodeSmith/pinia-async-state/releases)
@@ -14,7 +14,7 @@
 
 ## The Problem
 
-Every Pinia store with async actions ends up repeating the same `loading` / `error` boilerplate. A typical store with three async actions looks like this:
+Every Pinia store with async actions ends up repeating the same `loading` / `error` boilerplate:
 
 ```ts
 // stores/users.ts
@@ -36,43 +36,16 @@ export const useUsersStore = defineStore("users", {
         this.loading = false;
       }
     },
-    async deleteUser(id: number) {
-      this.loading = true;
-      this.error = null;
-      try {
-        await api.delete(`/users/${id}`);
-        this.users = this.users.filter((u) => u.id !== id);
-      } catch (e) {
-        this.error = e as Error;
-      } finally {
-        this.loading = false;
-      }
-    },
-    async updateUser(id: number, patch: Partial<User>) {
-      this.loading = true;
-      this.error = null;
-      try {
-        const updated = await api.patch(`/users/${id}`, patch);
-        this.users = this.users.map((u) => (u.id === id ? updated : u));
-      } catch (e) {
-        this.error = e as Error;
-      } finally {
-        this.loading = false;
-      }
-    },
+    // ...same 10 lines for every other async action
   },
 });
 ```
 
-**~45 lines** — but only **3 lines per action** are real business logic. Multiply this by every store in your app and it becomes hundreds of lines of noise.
-
-Worse, `loading` is a single boolean, so if two actions run in parallel, the first one to finish sets `loading = false` while the second is still running. The same problem exists for `error`.
-
----
+Worse, `loading` is a single boolean: if two actions run in parallel, the first one to finish sets `loading = false` while the second is still running.
 
 ## The Solution
 
-Install the plugin **once** in your app:
+Install the plugin **once**:
 
 ```ts
 // main.ts
@@ -82,7 +55,7 @@ import { createPiniaAsyncStatePlugin } from "pinia-async-state";
 const pinia = createPinia().use(createPiniaAsyncStatePlugin());
 ```
 
-Now rewrite the **same store** — the boilerplate is gone:
+Now write plain actions — the state is there automatically:
 
 ```ts
 // stores/users.ts
@@ -98,53 +71,29 @@ export const useUsersStore = defineStore("users", {
       await api.delete(`/users/${id}`);
       this.users = this.users.filter((u) => u.id !== id);
     },
-    async updateUser(id: number, patch: Partial<User>) {
-      const updated = await api.patch(`/users/${id}`, patch);
-      this.users = this.users.map((u) => (u.id === id ? updated : u));
-    },
   },
 });
 ```
 
-**~15 lines.** Same behavior. Zero boilerplate. The plugin automatically:
-
-- Sets `$loading` to `true` when any action starts
-- Sets `$loading` back to `false` only when **all** pending actions finish
-- Captures errors in `$error` without interfering with your `try/catch`
-- Tracks which actions are currently running in `$pendingActions`
-
----
-
-## What you get for free
-
-Every store — whether Options Store or Setup Store — automatically exposes these:
-
-| Property             | Type            | Description                                                   |
-| -------------------- | --------------- | ------------------------------------------------------------- |
-| `$loading`           | `boolean`       | `true` while at least one action is pending                   |
-| `$error`             | `Error \| null` | Last error thrown by any action (auto-cleared on next action) |
-| `$pendingActions`    | `string[]`      | Names of currently running actions                            |
-| `$resetAsyncState()` | `() => void`    | Manually clear `$loading`, `$error`, and `$pendingActions`    |
-
-Use them directly in any component:
-
 ```vue
 <script setup lang="ts">
-import { onMounted } from "vue";
-import { useUsersStore } from "~/stores/users";
-
 const store = useUsersStore();
 onMounted(() => store.fetchUsers());
 </script>
 
 <template>
+  <!-- whole-store loading: correct even with parallel actions -->
   <Spinner v-if="store.$loading" />
   <ErrorBanner v-if="store.$error" :message="store.$error.message" />
-  <UserList v-else :users="store.users" />
+
+  <UserList :users="store.users" />
+
+  <!-- per-action loading, no matter what else is running -->
+  <button :disabled="store.$async.deleteUser.loading">
+    {{ store.$async.deleteUser.loading ? "Deleting…" : "Delete" }}
+  </button>
 </template>
 ```
-
-Because `$loading` and `$error` live on the **store itself**, every component that calls `useUsersStore()` sees the same state — no syncing, no prop drilling.
 
 ---
 
@@ -152,21 +101,15 @@ Because `$loading` and `$error` live on the **store itself**, every component th
 
 ```bash
 npm install pinia-async-state
-```
-
-```bash
+# or
 pnpm add pinia-async-state
-```
-
-```bash
+# or
 yarn add pinia-async-state
 ```
 
-**Peer dependencies:** `vue@^3.3.0`, `pinia@^2.0.0`
+**Peer dependencies:** `vue@^3.3.0`, `pinia@^2.1.7 || ^3.0.0`
 
----
-
-## Usage
+## Setup
 
 ### Vue 3
 
@@ -182,10 +125,10 @@ const pinia = createPinia().use(createPiniaAsyncStatePlugin());
 createApp(App).use(pinia).mount("#app");
 ```
 
-### Nuxt 3
+### Nuxt 3 / 4
 
 ```ts
-// plugins/pinia.ts
+// plugins/pinia-async-state.ts
 import { createPiniaAsyncStatePlugin } from "pinia-async-state";
 
 export default defineNuxtPlugin(({ $pinia }) => {
@@ -193,29 +136,52 @@ export default defineNuxtPlugin(({ $pinia }) => {
 });
 ```
 
-> Make sure `@pinia/nuxt` is installed and the plugin is registered **after** the Pinia module is loaded.
+Make sure `@pinia/nuxt` is installed and this plugin loads after Pinia (the `$pinia` injection requires it).
 
-### Composition API (Setup Store)
+---
 
-Works identically — the plugin operates at the store level, not the action level:
+## What you get
+
+Every store (Options or Setup) automatically exposes:
+
+| Property                 | Type                        | Description                                              |
+| ------------------------ | --------------------------- | -------------------------------------------------------- |
+| `$loading`               | `boolean`                   | `true` while **any** tracked call is pending             |
+| `$error`                 | `Error \| null`             | Last error thrown by any action                          |
+| `$errorInfo`             | `AsyncErrorInfo \| null`    | Last error plus `action`, `storeId`, `raw` and `at`      |
+| `$pendingActions`        | `string[]`                  | Unique names of the running actions (a fresh array)      |
+| `$pendingCount`          | `number`                    | Number of in-flight calls (re-entrant calls count twice) |
+| `$async`                 | `AsyncActionRegistry`       | Per-action state — `$async.fetchUsers.loading`           |
+| `$isActionPending(name)` | `(name: string) => boolean` | Is this specific action running?                         |
+| `$clearError()`          | `() => void`                | Clear `$error`, `$errorInfo` and every action error      |
+| `$resetAction(name)`     | `(name: string) => void`    | Reset loading/error/timestamps of one action             |
+| `$resetAsyncState()`     | `() => void`                | Reset everything for this store                          |
+| `$waitForIdle()`         | `() => Promise<void>`       | Resolves when nothing is pending anymore                 |
+| `$track(name, work)`     | `(name, promise) => Promise`| Track any promise as if it were an action                |
+
+### Per-action state
+
+`store.$async.<actionName>` is reactive and read-only:
 
 ```ts
-// stores/users.ts
-import { defineStore } from "pinia";
-import { ref } from "vue";
-
-export const useUsersStore = defineStore("users", () => {
-  const users = ref<User[]>([]);
-
-  async function fetchUsers() {
-    users.value = await api.get("/users");
-  }
-
-  return { users, fetchUsers };
-});
+store.$async.fetchUsers.loading; // boolean
+store.$async.fetchUsers.error; // Error | null
+store.$async.fetchUsers.pendingCount; // in-flight calls of this action
+store.$async.fetchUsers.runCount; // how many times it ran
+store.$async.fetchUsers.lastRunAt; // timestamp | null
+store.$async.fetchUsers.lastSuccessAt; // timestamp | null
 ```
 
-In the component, `store.$loading` and `store.$error` behave exactly as with Options Stores.
+So you can render an independent spinner per action, without any extra flags in your store:
+
+```vue
+<template>
+  <Spinner v-if="store.$async.fetchUsers.loading" />
+  <button :disabled="store.$async.saveProfile.loading">
+    {{ store.$async.saveProfile.loading ? "Saving…" : "Save" }}
+  </button>
+</template>
+```
 
 ---
 
@@ -224,121 +190,163 @@ In the component, `store.$loading` and `store.$error` behave exactly as with Opt
 ```ts
 pinia.use(
   createPiniaAsyncStatePlugin({
-    logErrors: false, // default: false — log every action error to console.error
-    resetOnAction: true, // default: true  — clear $error at the start of each action
+    logErrors: false,
+    resetOnAction: true,
+    only: undefined,
+    exclude: [],
+    minLoadingTime: 0,
+    normalizeError: undefined,
+    onError: undefined,
   }),
 );
 ```
 
-| Option          | Type      | Default | Description                                                                                                                      |
-| --------------- | --------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `logErrors`     | `boolean` | `false` | If `true`, every error thrown by an action is logged via `console.error` with the action name.                                   |
-| `resetOnAction` | `boolean` | `true`  | If `true`, `$error` is cleared at the start of each action. Set to `false` if you want the last error to persist across actions. |
+| Option            | Type                                                    | Default     | Description                                                                                       |
+| ----------------- | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------- |
+| `logErrors`       | `boolean`                                               | `false`     | Log every failed action to `console.error`                                                        |
+| `resetOnAction`   | `boolean`                                               | `true`      | Clear `$error` (and the action's own error) when an action starts                                 |
+| `only`            | `string[]`                                              | `undefined` | Track only these action names                                                                     |
+| `exclude`         | `string[]`                                              | `[]`        | Never track these action names (e.g. `["hydrate", "internal"]`)                                   |
+| `minLoadingTime`  | `number`                                                | `0`         | Keep `$loading` true for at least this many ms, so fast requests don't flash a spinner            |
+| `normalizeError`  | `(raw, origin) => Error`                                | –           | Convert whatever your action threw into an `Error`                                                |
+| `onError`         | `({ storeId, action, error, raw }) => void`             | –           | Called for every failed action — perfect for toasts, Sentry, logging                              |
+
+### Error hook example
+
+```ts
+createPiniaAsyncStatePlugin({
+  onError: ({ storeId, action, error }) => {
+    if (action === "login") return; // expected failures
+    toast.error(error.message);
+    Sentry.captureException(error, { tags: { storeId, action } });
+  },
+});
+```
+
+### No spinner flicker
+
+```ts
+createPiniaAsyncStatePlugin({ minLoadingTime: 300 });
+```
+
+A request that finishes in 40 ms no longer flashes the spinner for 40 ms — `$loading` stays `true` for 300 ms.
+
+### Only track what matters
+
+```ts
+createPiniaAsyncStatePlugin({
+  exclude: ["trackPageView", "prefetch"],
+});
+```
+
+Or per store:
+
+```ts
+export const useAnalyticsStore = defineStore("analytics", {
+  state: () => ({}),
+  actions: {
+    async trackPageView() {},
+    async sendEvent() {},
+  },
+  asyncState: { exclude: ["trackPageView"] },
+});
+```
 
 ---
 
-## Opting out for a specific store
+## Utilities
 
-If a store shouldn't get the auto-injected properties, set `asyncState: false` in the store options:
+### `$track` — async work outside actions
+
+`$onAction` only sees real Pinia actions. Wrap anything else and it is tracked the same way:
+
+```ts
+await store.$track("uploadAvatar", () => uploadFile(file));
+// store.$async.uploadAvatar.loading is true while it runs
+```
+
+A promise is accepted too: `store.$track("uploadAvatar", uploadFile(file))`.
+
+### `$waitForIdle` — wait for everything
+
+```ts
+await store.$waitForIdle(); // e.g. before SSR serialization or navigation guards
+```
+
+### Clearing errors
+
+```ts
+store.$clearError(); // user dismissed the error banner
+store.$resetAction("deleteUser"); // forget one action's state
+store.$resetAsyncState(); // forget the whole store's async state
+```
+
+> `$resetAsyncState()` and `$resetAction()` force-clear loading counters. Calls that were already
+> in flight when you reset are no longer tracked, so they can't flip `$loading` back on afterwards.
+
+---
+
+## Opting out per store
 
 ```ts
 export const useSystemStore = defineStore("system", {
   state: () => ({ config: {} }),
   actions: {
-    async loadConfig() {
-      /* ... */
-    },
+    async loadConfig() {},
   },
   asyncState: false,
 });
 ```
 
-For Setup Stores:
+Setup stores take the same flag as the third argument:
 
 ```ts
-export const useSystemStore = defineStore(
-  "system",
-  () => {
-    // ...
-  },
-  {
-    asyncState: false,
-  },
-);
+export const useSystemStore = defineStore("system", () => ({}), {
+  asyncState: false,
+});
 ```
 
-The plugin will skip this store entirely — `$loading`, `$error`, `$pendingActions`, and `$resetAsyncState` won't be added.
+The plugin skips the store entirely — no `$loading`, `$error`, `$async`, … are injected.
+TypeScript still types them as present (Pinia cannot express per-store conditionals); if you need the
+types to match, use `Omit<typeof store, keyof AsyncState>`.
 
 ---
 
-## API Reference
+## Recipes
 
-### `createPiniaAsyncStatePlugin(options?)`
-
-Factory that returns a Pinia plugin. Pass the returned plugin to `pinia.use(...)`.
+### Manual refresh button
 
 ```ts
-import { createPinia } from "pinia";
-import { createPiniaAsyncStatePlugin } from "pinia-async-state";
-
-const pinia = createPinia().use(
-  createPiniaAsyncStatePlugin({ logErrors: true }),
-);
-```
-
-**Parameters:**
-
-- `options.logErrors?: boolean` — default `false`
-- `options.resetOnAction?: boolean` — default `true`
-
-**Returns:** a `PiniaPlugin` function.
-
-### Store properties (injected)
-
-#### `$loading: boolean`
-
-`true` while **at least one** action is pending. Becomes `false` only when all pending actions have finished. Safe for parallel actions.
-
-#### `$error: Error | null`
-
-The last error thrown by any action in this store. If `resetOnAction` is `true` (default), it is cleared at the start of every action. The error is also re-thrown normally — so your existing `try/catch` keeps working.
-
-#### `$pendingActions: string[]`
-
-Names of actions currently in-flight. Useful for showing which operation is running (e.g., a "Saving…" label vs a "Loading…" spinner).
-
-#### `$resetAsyncState(): void`
-
-Manually reset `$loading`, `$error`, and `$pendingActions`. Handy after the user dismisses an error banner:
-
-```ts
-function dismissError() {
-  store.$resetAsyncState();
+async function refresh() {
+  try {
+    await store.fetchUsers();
+  } catch {
+    // already in store.$error, and onError already fired
+  }
 }
 ```
 
----
-
-## Why not just…?
-
-### Why not `useAsyncState` from VueUse?
-
-`useAsyncState` works at the **component** level — each component that calls it gets its own independent state. If three components fetch the same data, you get three separate loading flags. This plugin works at the **store** level, so there's exactly one source of truth.
-
-### Why not write a custom composable?
-
-You can — and for a single store, that's fine. But you'd have to wrap every action manually:
+### Global progress bar
 
 ```ts
-const { loading, error, run } = useAsyncAction(fetchUsers);
-await run();
+const stores = [useUsersStore(), usePostsStore()];
+const anyLoading = computed(() => stores.some((s) => s.$loading));
 ```
 
-This plugin requires **zero changes to your actions**. You write the action as you normally would, and `$loading` / `$error` are there automatically. It also composes with `pinia-plugin-persistedstate` and other Pinia plugins without conflict.
+### Retry helper
 
-### Does it interfere with `pinia-plugin-persistedstate`?
+```ts
+async function retry<T>(fn: () => Promise<T>, times = 3): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (times <= 1) throw error;
+    return retry(fn, times - 1);
+  }
+}
 
-No. This plugin only adds `$`-prefixed properties to the store instance and never touches `state()`. It's fully compatible.
+await store.$track("refreshUsers", () => retry(() => store.fetchUsers()));
+```
 
 ---
 
@@ -347,46 +355,53 @@ No. This plugin only adds `$`-prefixed properties to the store instance and neve
 | Package    | Version                      |
 | ---------- | ---------------------------- |
 | Vue        | `^3.3.0`                     |
-| Pinia      | `^2.0.0`                     |
+| Pinia      | `^2.1.7` \|\| `^3.0.0`       |
 | Nuxt       | `^3.0.0` (via `@pinia/nuxt`) |
 | TypeScript | `^5.0.0`                     |
 | Node       | `>=18`                       |
+
+Errors are always re-thrown, so your own `try/catch` keeps working and unhandled rejections are not swallowed.
+The plugin only adds `$`-prefixed properties and never touches `state()`, so it composes with
+`pinia-plugin-persistedstate` and other Pinia plugins.
+
+---
+
+## Migration from 0.1
+
+Everything from `0.1` keeps working. New in `0.2`:
+
+- `$async` per-action state, `$pendingCount`, `$isActionPending`, `$errorInfo`
+- `$clearError`, `$resetAction`, `$waitForIdle`, `$track`
+- options `only`, `exclude`, `minLoadingTime`, `normalizeError`, `onError`
+- per-store `asyncState: { only, exclude }`
+- Pinia 3 support, correct CJS/ESM type declarations
+
+Behavior changes:
+
+- `$pendingActions` is now a **copy** (one entry per action), so mutating it can no longer corrupt the state
+- `$resetAsyncState()` also ignores in-flight calls that started before the reset
 
 ---
 
 ## Development
 
 ```bash
-# Install dependencies
 npm install
 
-# Run tests in watch mode
-npm run test:watch
-
-# Run tests once
-npm test
-
-# Type check
-npm run typecheck
-
-# Build for production
-npm run build
+npm run test:watch   # tests in watch mode
+npm test             # tests once
+npm run typecheck    # tsc
+npm run build        # tsup -> dist (esm + cjs + d.ts)
 ```
 
 Built with [tsup](https://tsup.egoist.dev/) and tested with [Vitest](https://vitest.dev/).
 
----
-
 ## Contributing
-
-Issues and pull requests are welcome. If you found this plugin useful, a ⭐ on GitHub goes a long way.
 
 1. Fork the repo
 2. Create a feature branch (`git checkout -b feat/my-feature`)
 3. Commit your changes (`git commit -m "feat: add my feature"`)
 4. Push and open a Pull Request
-
----
 
 ## License
 

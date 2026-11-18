@@ -1,13 +1,16 @@
 {
   "name": "pinia-async-state",
-  "version": "0.1.0",
-  "description": "A tiny Pinia plugin that automatically tracks loading and error state for every async action.",
+  "version": "0.2.0",
+  "description": "A tiny Pinia plugin that tracks loading and error state for every async action — per store and per action, with zero boilerplate.",
   "keywords": [
     "pinia",
     "vue",
+    "nuxt",
     "plugin",
     "loading",
     "async",
+    "error-handling",
+    "loading-state",
     "typescript",
     "composition-api",
     "state-management"
@@ -20,22 +23,41 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
   ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/V-CodeSmith/pinia-async-state.git"
+  },
+  "homepage": "https://github.com/V-CodeSmith/pinia-async-state#readme",
+  "bugs": {
+    "url": "https://github.com/V-CodeSmith/pinia-async-state/issues"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
   },
   "peerDependencies": {
-    "pinia": "^2.0.0",
+    "pinia": "^2.1.7 || ^3.0.0",
     "vue": "^3.3.0"
   },
   "devDependencies": {
