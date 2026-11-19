@@ -1,6 +1,6 @@
 {
   "name": "pinia-async-state",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A tiny Pinia plugin that tracks loading and error state for every async action — per store and per action, with zero boilerplate.",
   "keywords": [
     "pinia",
@@ -57,14 +57,14 @@
     "prepublishOnly": "npm run build && npm test"
   },
   "peerDependencies": {
-    "pinia": "^2.1.7 || ^3.0.0",
+    "pinia": "^2.0.0 || ^3.0.0 || ^4.0.0",
     "vue": "^3.3.0"
   },
   "devDependencies": {
-    "pinia": "^2.1.7",
+    "pinia": "^4.1.0",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0",
     "vitest": "^1.0.0",
-    "vue": "^3.4.0"
+    "vue": "^3.5.0"
   }
 }
